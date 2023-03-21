@@ -12,7 +12,7 @@ categories = ["data-structures"]
 keywords = ["ordered", "set", "map", "custom", "order"]
 
 [features]
-all = ["hash", "stream", "serialize"]
+all = ["hash", "stream", "serialize", "uuid"]
 hash = ["async-hash", "hex", "hr-id/hash"]
 stream = ["async-trait", "destream", "hr-id/stream"]
 serialize = ["serde", "hr-id/serde"]
