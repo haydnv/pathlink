@@ -12,7 +12,7 @@ categories = ["data-structures"]
 keywords = ["ordered", "set", "map", "custom", "order"]
 
 [features]
-all = ["hash", "stream", "serialize", "uuid"]
+all = ["hash", "stream", "serialize", "uuid", "url"]
 hash = ["async-hash", "hex", "hr-id/hash"]
 stream = ["async-trait", "destream", "hr-id/stream"]
 serialize = ["serde", "hr-id/serde"]
@@ -29,3 +29,4 @@ hex = { version = "0.4", optional = true }
 hr-id = { path = "../hr-id" }
 safecast = { path = "../safecast" }
 serde = { version = "1.0", optional = true }
+url = { version = "2.2", optional = true }

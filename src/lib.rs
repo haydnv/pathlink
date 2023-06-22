@@ -23,6 +23,86 @@ pub use path::*;
 /// A port number
 pub type Port = u16;
 
+/// An owned or borrowed [`Link`] or [`TCPath`] which can be parsed as a URL.
+pub enum ToUrl<'a> {
+    Link(Link),
+    LinkRef(&'a Link),
+    Path(PathBuf),
+    PathRef(&'a [PathSegment]),
+}
+
+impl<'a> ToUrl<'a> {
+    /// Borrow the [`Host`] component of this link, if any.
+    pub fn host(&self) -> Option<&Host> {
+        match self {
+            Self::Link(link) => link.host(),
+            Self::LinkRef(link) => link.host(),
+            _ => None,
+        }
+    }
+
+    /// Borrow the [`TCPath`] component of this link.
+    pub fn path(&self) -> &[PathSegment] {
+        match self {
+            Self::Link(link) => link.path(),
+            Self::LinkRef(link) => link.path(),
+            Self::Path(path) => path,
+            Self::PathRef(path) => path,
+        }
+    }
+
+    #[cfg(feature = "url")]
+    /// Construct a new [`url::Url`] from this link.
+    pub fn to_url(&self) -> url::Url {
+        self.to_string().parse().expect("URL")
+    }
+}
+
+impl<'a> fmt::Display for ToUrl<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Link(link) => fmt::Display::fmt(link, f),
+            Self::LinkRef(link) => fmt::Display::fmt(link, f),
+            Self::Path(path) => fmt::Display::fmt(path, f),
+            Self::PathRef(path) => {
+                if path.is_empty() {
+                    f.write_str("/")?;
+                }
+
+                for segment in path.iter() {
+                    write!(f, "/{segment}")?;
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+impl<'a> From<Link> for ToUrl<'a> {
+    fn from(link: Link) -> Self {
+        Self::Link(link)
+    }
+}
+
+impl<'a> From<&'a Link> for ToUrl<'a> {
+    fn from(link: &'a Link) -> Self {
+        Self::LinkRef(link)
+    }
+}
+
+impl<'a> From<PathBuf> for ToUrl<'a> {
+    fn from(path: PathBuf) -> Self {
+        Self::Path(path)
+    }
+}
+
+impl<'a> From<&'a [PathSegment]> for ToUrl<'a> {
+    fn from(path: &'a [PathSegment]) -> Self {
+        Self::PathRef(path.into())
+    }
+}
+
 /// The protocol portion of a [`Link`] (e.g. "http")
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, GetSize)]
 pub enum Protocol {
