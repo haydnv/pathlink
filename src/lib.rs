@@ -2,13 +2,14 @@
 
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::{fmt, iter};
 
 use derive_more::*;
 use get_size::GetSize;
 use get_size_derive::*;
+
+pub use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 pub use hr_id::{label, Id, Label, ParseError};
 
@@ -23,7 +24,7 @@ pub use path::*;
 /// A port number
 pub type Port = u16;
 
-/// An owned or borrowed [`Link`] or [`TCPath`] which can be parsed as a URL.
+/// An owned or borrowed [`Link`] or [`Path`] which can be parsed as a URL.
 pub enum ToUrl<'a> {
     Link(Link),
     LinkRef(&'a Link),
@@ -41,7 +42,7 @@ impl<'a> ToUrl<'a> {
         }
     }
 
-    /// Borrow the [`TCPath`] component of this link.
+    /// Borrow the [`Path`] component of this link.
     pub fn path(&self) -> &[PathSegment] {
         match self {
             Self::Link(link) => link.path(),
