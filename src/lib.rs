@@ -8,6 +8,7 @@ use std::{fmt, iter};
 use derive_more::*;
 use get_size::GetSize;
 use get_size_derive::*;
+use smallvec::SmallVec;
 
 pub use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -23,6 +24,8 @@ pub use path::*;
 
 /// A port number
 pub type Port = u16;
+
+type Segments<T> = SmallVec<[T; 16]>;
 
 /// An owned or borrowed [`Link`] or [`Path`] which can be parsed as a URL.
 pub enum ToUrl<'a> {
@@ -243,9 +246,9 @@ impl FromStr for Host {
         let s = &s[7..];
 
         let (address, port): (Address, Option<u16>) = if s.contains("::") {
-            let mut segments: Vec<&str> = s.split("::").collect();
+            let mut segments: Segments<&str> = s.split("::").collect();
             let port: Option<u16> = if segments.last().unwrap().contains(':') {
-                let last_segment: Vec<&str> = segments.pop().unwrap().split(':').collect();
+                let last_segment: Segments<&str> = segments.pop().unwrap().split(':').collect();
                 if last_segment.len() == 2 {
                     segments.push(last_segment[0]);
 
@@ -272,7 +275,7 @@ impl FromStr for Host {
             (address.into(), port)
         } else {
             let (address, port) = if s.contains(':') {
-                let segments: Vec<&str> = s.split(':').collect();
+                let segments: Segments<&str> = s.split(':').collect();
                 if segments.len() == 2 {
                     let port: u16 = segments[1].parse().map_err(|cause| {
                         ParseError::from(format!(
@@ -516,7 +519,8 @@ impl FromStr for Link {
             s
         };
 
-        let segments: Vec<&str> = s.split('/').collect();
+        let segments: Segments<&str> = s.split('/').collect();
+
         if segments.is_empty() {
             return Err(format!("invalid Link: {}", s).into());
         }
@@ -528,7 +532,7 @@ impl FromStr for Link {
         let segments = segments
             .iter()
             .map(|s| s.parse())
-            .collect::<Result<Vec<PathSegment>, ParseError>>()?;
+            .collect::<Result<Segments<PathSegment>, ParseError>>()?;
 
         Ok(Link {
             host: Some(host),

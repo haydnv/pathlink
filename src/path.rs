@@ -5,9 +5,9 @@ use std::str::FromStr;
 use std::{fmt, iter};
 
 use get_size::GetSize;
-use get_size_derive::*;
+use smallvec::*;
 
-use super::{label, Id, Label, ParseError};
+use super::{label, Id, Label, ParseError, Segments};
 
 /// A segment of a [`Path`]
 pub type PathSegment = Id;
@@ -114,14 +114,14 @@ impl<'a> fmt::Display for Path<'a> {
 }
 
 /// A segmented link buffer safe to use with a filesystem or via HTTP.
-#[derive(Clone, Default, Hash, Eq, PartialEq, GetSize)]
+#[derive(Clone, Default, Hash, Eq, PartialEq)]
 pub struct PathBuf {
-    segments: Vec<PathSegment>,
+    segments: Segments<PathSegment>,
 }
 
 impl PathBuf {
-    /// Consumes `self` and returns its underlying vector.
-    pub fn into_vec(self) -> Vec<PathSegment> {
+    /// Destructures this [`PathBuf`] into its underlying [`SmallVec`].
+    pub fn into_inner(self) -> Segments<PathSegment> {
         self.segments
     }
 
@@ -143,6 +143,12 @@ impl PathBuf {
         } else {
             None
         }
+    }
+}
+
+impl GetSize for PathBuf {
+    fn get_size(&self) -> usize {
+        self.segments.iter().map(|segment| segment.get_size()).sum()
     }
 }
 
@@ -209,7 +215,7 @@ impl PartialEq<str> for PathBuf {
 
 impl IntoIterator for PathBuf {
     type Item = PathSegment;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = <Segments<PathSegment> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.segments.into_iter()
@@ -238,7 +244,7 @@ impl DerefMut for PathBuf {
 
 impl PartialEq<[PathSegment]> for PathBuf {
     fn eq(&self, other: &[PathSegment]) -> bool {
-        &self.segments == other
+        self.segments.as_slice() == other
     }
 }
 
@@ -264,7 +270,9 @@ impl FromStr for PathBuf {
     #[inline]
     fn from_str(to: &str) -> Result<Self, Self::Err> {
         if to == "/" {
-            Ok(PathBuf { segments: vec![] })
+            Ok(PathBuf {
+                segments: smallvec![],
+            })
         } else if to.ends_with('/') {
             Err(format!("Path {} cannot end with a slash", to).into())
         } else if to.starts_with('/') {
@@ -272,7 +280,7 @@ impl FromStr for PathBuf {
                 .split('/')
                 .skip(1)
                 .map(PathSegment::from_str)
-                .collect::<Result<Vec<PathSegment>, ParseError>>()?;
+                .collect::<Result<Segments<PathSegment>, ParseError>>()?;
 
             Ok(PathBuf { segments })
         } else {
@@ -285,8 +293,8 @@ impl FromStr for PathBuf {
     }
 }
 
-impl From<Vec<PathSegment>> for PathBuf {
-    fn from(segments: Vec<PathSegment>) -> Self {
+impl From<Segments<PathSegment>> for PathBuf {
+    fn from(segments: Segments<PathSegment>) -> Self {
         Self { segments }
     }
 }
