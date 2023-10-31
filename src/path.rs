@@ -120,6 +120,27 @@ pub struct PathBuf {
 }
 
 impl PathBuf {
+    /// Construct a new, empty [`PathBuf`].
+    pub fn new() -> Self {
+        Self {
+            segments: Segments::new(),
+        }
+    }
+
+    /// Construct a new [`PathBuf`] by cloning the path segments in the given `slice`.
+    pub fn from_slice(segments: &[PathSegment]) -> Self {
+        Self {
+            segments: segments.into_iter().cloned().collect(),
+        }
+    }
+
+    /// Construct a new, empty [`PathBuf`] with the given `capacity`.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            segments: Segments::with_capacity(capacity),
+        }
+    }
+
     /// Destructures this [`PathBuf`] into its underlying [`SmallVec`].
     pub fn into_inner(self) -> Segments<PathSegment> {
         self.segments
