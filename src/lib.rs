@@ -1,6 +1,5 @@
 //! A URI which supports IPv4, IPv6, domain names, and segmented [`Path`]s.
 
-use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::{fmt, iter};
@@ -448,8 +447,6 @@ impl PartialEq<String> for Link {
 
 impl PartialEq<str> for Link {
     fn eq(&self, other: &str) -> bool {
-        let other = other.borrow();
-
         if other.is_empty() {
             false
         } else if other.starts_with('/') {
