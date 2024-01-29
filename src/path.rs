@@ -30,6 +30,26 @@ pub const fn path_label(segments: &'static [&'static str]) -> PathLabel {
     PathLabel { segments }
 }
 
+impl fmt::Display for PathLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("/")?;
+
+        let mut segments = self.segments.iter();
+        let last = segments.next_back();
+
+        for id in segments {
+            f.write_str(id)?;
+            f.write_str("/")?;
+        }
+
+        if let Some(last) = last {
+            f.write_str(last)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl From<PathLabel> for Id {
     fn from(path: PathLabel) -> Self {
         Label::from(path).into()
@@ -337,5 +357,22 @@ impl fmt::Debug for PathBuf {
 impl fmt::Display for PathBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", Path::from(&self[..]))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_path_label_to_string() {
+        let path = path_label(&[]);
+        assert_eq!(path.to_string(), "/".to_string());
+
+        let path = path_label(&["one"]);
+        assert_eq!(path.to_string(), "/one".to_string());
+
+        let path = path_label(&["one", "two"]);
+        assert_eq!(path.to_string(), "/one/two".to_string());
     }
 }
