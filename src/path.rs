@@ -78,6 +78,14 @@ impl From<PathLabel> for PathBuf {
     }
 }
 
+impl<const N: usize> From<[PathSegment; N]> for PathBuf {
+    fn from(segments: [PathSegment; N]) -> Self {
+        Self {
+            segments: segments.into_iter().collect(),
+        }
+    }
+}
+
 /// A segmented link safe to use with a filesystem or via HTTP.
 pub struct Path<'a> {
     inner: &'a [PathSegment],

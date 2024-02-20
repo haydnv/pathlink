@@ -24,7 +24,7 @@ pub use path::*;
 /// A port number
 pub type Port = u16;
 
-type Segments<T> = SmallVec<[T; 16]>;
+type Segments<T> = SmallVec<[T; 8]>;
 
 /// An owned or borrowed [`Link`] or [`Path`] which can be parsed as a URL.
 pub enum ToUrl<'a> {
@@ -54,10 +54,12 @@ impl<'a> ToUrl<'a> {
         }
     }
 
-    #[cfg(feature = "url")]
-    /// Construct a new [`url::Url`] from this link.
-    pub fn to_url(&self) -> url::Url {
-        self.to_string().parse().expect("URL")
+    /// Construct a new URL of the given type from this link.
+    pub fn parse<Url>(&self) -> Result<Url, <Url as FromStr>::Err>
+    where
+        Url: FromStr,
+    {
+        self.to_string().parse()
     }
 }
 
@@ -232,6 +234,20 @@ pub struct Host {
     port: Option<Port>,
 }
 
+impl Host {
+    pub fn protocol(&self) -> Protocol {
+        self.protocol
+    }
+
+    pub fn address(&self) -> &Address {
+        &self.address
+    }
+
+    pub fn port(&self) -> Option<Port> {
+        self.port
+    }
+}
+
 impl FromStr for Host {
     type Err = ParseError;
 
@@ -334,6 +350,17 @@ impl From<(Protocol, Address)> for Host {
             protocol,
             address,
             port: None,
+        }
+    }
+}
+
+impl From<(Address, Port)> for Host {
+    fn from(components: (Address, Port)) -> Self {
+        let (address, port) = components;
+        Self {
+            protocol: Protocol::default(),
+            address,
+            port: Some(port),
         }
     }
 }
