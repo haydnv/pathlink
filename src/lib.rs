@@ -150,6 +150,22 @@ pub enum Address {
     // TODO: international domain names with IDNA: https://docs.rs/idna/0.3.0/idna/
 }
 
+impl Address {
+    pub fn as_ip(&self) -> Option<IpAddr> {
+        match self {
+            Self::IPv4(addr) => Some((*addr).into()),
+            Self::IPv6(addr) => Some((*addr).into()),
+        }
+    }
+
+    pub fn is_localhost(&self) -> bool {
+        match self {
+            Self::IPv4(addr) => addr.is_loopback(),
+            Self::IPv6(addr) => addr.is_loopback(),
+        }
+    }
+}
+
 impl PartialOrd for Address {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -235,6 +251,10 @@ pub struct Host {
 }
 
 impl Host {
+    pub fn is_localhost(&self) -> bool {
+        self.address.is_localhost()
+    }
+
     pub fn protocol(&self) -> Protocol {
         self.protocol
     }
