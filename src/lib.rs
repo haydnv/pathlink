@@ -150,7 +150,15 @@ pub enum Address {
     // TODO: international domain names with IDNA: https://docs.rs/idna/0.3.0/idna/
 }
 
+impl Default for Address {
+    fn default() -> Self {
+        Self::LOCALHOST
+    }
+}
+
 impl Address {
+    pub const LOCALHOST: Self = Self::IPv4(Ipv4Addr::LOCALHOST);
+
     pub fn as_ip(&self) -> Option<IpAddr> {
         match self {
             Self::IPv4(addr) => Some((*addr).into()),
