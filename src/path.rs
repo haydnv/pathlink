@@ -17,6 +17,13 @@ pub struct PathLabel {
     segments: &'static [&'static str],
 }
 
+impl PathLabel {
+    /// Get the number of segments in this path label.
+    pub fn len(&self) -> usize {
+        self.segments.len()
+    }
+}
+
 impl<Idx: std::slice::SliceIndex<[&'static str]>> std::ops::Index<Idx> for PathLabel {
     type Output = Idx::Output;
 

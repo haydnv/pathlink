@@ -35,6 +35,16 @@ pub enum ToUrl<'a> {
 }
 
 impl<'a> ToUrl<'a> {
+    /// Construct a new [`Link`] from this URL.
+    pub fn to_link(&self) -> Link {
+        match self {
+            Self::Link(link) => (*link).clone(),
+            Self::LinkRef(link) => (**link).clone(),
+            Self::Path(path) => path.clone().into(),
+            Self::PathRef(path) => PathBuf::from_slice(path).into(),
+        }
+    }
+
     /// Borrow the [`Host`] component of this link, if any.
     pub fn host(&self) -> Option<&Host> {
         match self {
