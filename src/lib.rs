@@ -1,6 +1,5 @@
 //! A URI which supports IPv4, IPv6, domain names, and segmented [`Path`]s.
 
-use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::{fmt, iter};
@@ -8,6 +7,7 @@ use std::{fmt, iter};
 use derive_more::*;
 use get_size::GetSize;
 use get_size_derive::*;
+use smallvec::SmallVec;
 
 pub use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -24,6 +24,8 @@ pub use path::*;
 /// A port number
 pub type Port = u16;
 
+type Segments<T> = SmallVec<[T; 8]>;
+
 /// An owned or borrowed [`Link`] or [`Path`] which can be parsed as a URL.
 pub enum ToUrl<'a> {
     Link(Link),
@@ -33,6 +35,16 @@ pub enum ToUrl<'a> {
 }
 
 impl<'a> ToUrl<'a> {
+    /// Construct a new [`Link`] from this URL.
+    pub fn to_link(&self) -> Link {
+        match self {
+            Self::Link(link) => (*link).clone(),
+            Self::LinkRef(link) => (**link).clone(),
+            Self::Path(path) => path.clone().into(),
+            Self::PathRef(path) => PathBuf::from_slice(path).into(),
+        }
+    }
+
     /// Borrow the [`Host`] component of this link, if any.
     pub fn host(&self) -> Option<&Host> {
         match self {
@@ -52,10 +64,12 @@ impl<'a> ToUrl<'a> {
         }
     }
 
-    #[cfg(feature = "url")]
-    /// Construct a new [`url::Url`] from this link.
-    pub fn to_url(&self) -> url::Url {
-        self.to_string().parse().expect("URL")
+    /// Construct a new URL of the given type from this link.
+    pub fn parse<Url>(&self) -> Result<Url, <Url as FromStr>::Err>
+    where
+        Url: FromStr,
+    {
+        self.to_string().parse()
     }
 }
 
@@ -138,12 +152,38 @@ impl fmt::Display for Protocol {
     }
 }
 
-/// The address of a remove host
+/// A network address
 #[derive(Clone, Debug, Display, Eq, PartialEq, Hash)]
 pub enum Address {
     IPv4(Ipv4Addr),
     IPv6(Ipv6Addr),
     // TODO: international domain names with IDNA: https://docs.rs/idna/0.3.0/idna/
+}
+
+impl Default for Address {
+    fn default() -> Self {
+        Self::LOCALHOST
+    }
+}
+
+impl Address {
+    pub const LOCALHOST: Self = Self::IPv4(Ipv4Addr::LOCALHOST);
+
+    /// Return this [`Address`] as an [`IpAddr`].
+    pub fn as_ip(&self) -> Option<IpAddr> {
+        match self {
+            Self::IPv4(addr) => Some((*addr).into()),
+            Self::IPv6(addr) => Some((*addr).into()),
+        }
+    }
+
+    /// Return `true` if this is the [`Address`] of the local host.
+    pub fn is_localhost(&self) -> bool {
+        match self {
+            Self::IPv4(addr) => addr.is_loopback(),
+            Self::IPv6(addr) => addr.is_loopback(),
+        }
+    }
 }
 
 impl PartialOrd for Address {
@@ -230,6 +270,37 @@ pub struct Host {
     port: Option<Port>,
 }
 
+impl Host {
+    /// Check if the address of this [`Host`] is the local host.
+    pub fn is_localhost(&self) -> bool {
+        self.address.is_localhost()
+    }
+
+    /// Check if this [`Host`] matches the host and port of the given `public_addr` or localhost.
+    pub fn is_loopback(&self, public_addr: Option<&Host>) -> bool {
+        if let Some(addr) = public_addr {
+            self == addr || (self.is_localhost() && self.port == addr.port)
+        } else {
+            self.is_localhost()
+        }
+    }
+
+    /// Return the [`Protocol`] to use with this [`Host`].
+    pub fn protocol(&self) -> Protocol {
+        self.protocol
+    }
+
+    /// Return the [`Address`] of this [`Host`].
+    pub fn address(&self) -> &Address {
+        &self.address
+    }
+
+    /// Return the [`Port`] which this [`Host`] is listening on.
+    pub fn port(&self) -> Option<Port> {
+        self.port
+    }
+}
+
 impl FromStr for Host {
     type Err = ParseError;
 
@@ -243,9 +314,9 @@ impl FromStr for Host {
         let s = &s[7..];
 
         let (address, port): (Address, Option<u16>) = if s.contains("::") {
-            let mut segments: Vec<&str> = s.split("::").collect();
+            let mut segments: Segments<&str> = s.split("::").collect();
             let port: Option<u16> = if segments.last().unwrap().contains(':') {
-                let last_segment: Vec<&str> = segments.pop().unwrap().split(':').collect();
+                let last_segment: Segments<&str> = segments.pop().unwrap().split(':').collect();
                 if last_segment.len() == 2 {
                     segments.push(last_segment[0]);
 
@@ -272,7 +343,7 @@ impl FromStr for Host {
             (address.into(), port)
         } else {
             let (address, port) = if s.contains(':') {
-                let segments: Vec<&str> = s.split(':').collect();
+                let segments: Segments<&str> = s.split(':').collect();
                 if segments.len() == 2 {
                     let port: u16 = segments[1].parse().map_err(|cause| {
                         ParseError::from(format!(
@@ -332,6 +403,17 @@ impl From<(Protocol, Address)> for Host {
             protocol,
             address,
             port: None,
+        }
+    }
+}
+
+impl From<(Address, Port)> for Host {
+    fn from(components: (Address, Port)) -> Self {
+        let (address, port) = components;
+        Self {
+            protocol: Protocol::default(),
+            address,
+            port: Some(port),
         }
     }
 }
@@ -445,8 +527,6 @@ impl PartialEq<String> for Link {
 
 impl PartialEq<str> for Link {
     fn eq(&self, other: &str) -> bool {
-        let other = other.borrow();
-
         if other.is_empty() {
             false
         } else if other.starts_with('/') {
@@ -516,7 +596,8 @@ impl FromStr for Link {
             s
         };
 
-        let segments: Vec<&str> = s.split('/').collect();
+        let segments: Segments<&str> = s.split('/').collect();
+
         if segments.is_empty() {
             return Err(format!("invalid Link: {}", s).into());
         }
@@ -528,7 +609,7 @@ impl FromStr for Link {
         let segments = segments
             .iter()
             .map(|s| s.parse())
-            .collect::<Result<Vec<PathSegment>, ParseError>>()?;
+            .collect::<Result<Segments<PathSegment>, ParseError>>()?;
 
         Ok(Link {
             host: Some(host),

@@ -5,9 +5,9 @@ use std::str::FromStr;
 use std::{fmt, iter};
 
 use get_size::GetSize;
-use get_size_derive::*;
+use smallvec::*;
 
-use super::{label, Id, Label, ParseError};
+use super::{label, Id, Label, ParseError, Segments};
 
 /// A segment of a [`Path`]
 pub type PathSegment = Id;
@@ -15,6 +15,13 @@ pub type PathSegment = Id;
 /// A constant representing a [`PathBuf`].
 pub struct PathLabel {
     segments: &'static [&'static str],
+}
+
+impl PathLabel {
+    /// Get the number of segments in this path label.
+    pub fn len(&self) -> usize {
+        self.segments.len()
+    }
 }
 
 impl<Idx: std::slice::SliceIndex<[&'static str]>> std::ops::Index<Idx> for PathLabel {
@@ -28,6 +35,26 @@ impl<Idx: std::slice::SliceIndex<[&'static str]>> std::ops::Index<Idx> for PathL
 /// Return a [`PathLabel`] with the given segments.
 pub const fn path_label(segments: &'static [&'static str]) -> PathLabel {
     PathLabel { segments }
+}
+
+impl fmt::Display for PathLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("/")?;
+
+        let mut segments = self.segments.iter();
+        let last = segments.next_back();
+
+        for id in segments {
+            f.write_str(id)?;
+            f.write_str("/")?;
+        }
+
+        if let Some(last) = last {
+            f.write_str(last)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl From<PathLabel> for Id {
@@ -55,6 +82,14 @@ impl From<PathLabel> for PathBuf {
             .collect();
 
         Self { segments }
+    }
+}
+
+impl<const N: usize> From<[PathSegment; N]> for PathBuf {
+    fn from(segments: [PathSegment; N]) -> Self {
+        Self {
+            segments: segments.into_iter().collect(),
+        }
     }
 }
 
@@ -114,14 +149,35 @@ impl<'a> fmt::Display for Path<'a> {
 }
 
 /// A segmented link buffer safe to use with a filesystem or via HTTP.
-#[derive(Clone, Default, Hash, Eq, PartialEq, GetSize)]
+#[derive(Clone, Default, Hash, Eq, PartialEq)]
 pub struct PathBuf {
-    segments: Vec<PathSegment>,
+    segments: Segments<PathSegment>,
 }
 
 impl PathBuf {
-    /// Consumes `self` and returns its underlying vector.
-    pub fn into_vec(self) -> Vec<PathSegment> {
+    /// Construct a new, empty [`PathBuf`].
+    pub fn new() -> Self {
+        Self {
+            segments: Segments::new(),
+        }
+    }
+
+    /// Construct a new [`PathBuf`] by cloning the path segments in the given `slice`.
+    pub fn from_slice(segments: &[PathSegment]) -> Self {
+        Self {
+            segments: segments.into_iter().cloned().collect(),
+        }
+    }
+
+    /// Construct a new, empty [`PathBuf`] with the given `capacity`.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            segments: Segments::with_capacity(capacity),
+        }
+    }
+
+    /// Destructures this [`PathBuf`] into its underlying [`SmallVec`].
+    pub fn into_inner(self) -> Segments<PathSegment> {
         self.segments
     }
 
@@ -143,6 +199,12 @@ impl PathBuf {
         } else {
             None
         }
+    }
+}
+
+impl GetSize for PathBuf {
+    fn get_size(&self) -> usize {
+        self.segments.iter().map(|segment| segment.get_size()).sum()
     }
 }
 
@@ -209,7 +271,7 @@ impl PartialEq<str> for PathBuf {
 
 impl IntoIterator for PathBuf {
     type Item = PathSegment;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = <Segments<PathSegment> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.segments.into_iter()
@@ -238,7 +300,7 @@ impl DerefMut for PathBuf {
 
 impl PartialEq<[PathSegment]> for PathBuf {
     fn eq(&self, other: &[PathSegment]) -> bool {
-        &self.segments == other
+        self.segments.as_slice() == other
     }
 }
 
@@ -264,7 +326,9 @@ impl FromStr for PathBuf {
     #[inline]
     fn from_str(to: &str) -> Result<Self, Self::Err> {
         if to == "/" {
-            Ok(PathBuf { segments: vec![] })
+            Ok(PathBuf {
+                segments: smallvec![],
+            })
         } else if to.ends_with('/') {
             Err(format!("Path {} cannot end with a slash", to).into())
         } else if to.starts_with('/') {
@@ -272,7 +336,7 @@ impl FromStr for PathBuf {
                 .split('/')
                 .skip(1)
                 .map(PathSegment::from_str)
-                .collect::<Result<Vec<PathSegment>, ParseError>>()?;
+                .collect::<Result<Segments<PathSegment>, ParseError>>()?;
 
             Ok(PathBuf { segments })
         } else {
@@ -285,8 +349,8 @@ impl FromStr for PathBuf {
     }
 }
 
-impl From<Vec<PathSegment>> for PathBuf {
-    fn from(segments: Vec<PathSegment>) -> Self {
+impl From<Segments<PathSegment>> for PathBuf {
+    fn from(segments: Segments<PathSegment>) -> Self {
         Self { segments }
     }
 }
@@ -308,5 +372,22 @@ impl fmt::Debug for PathBuf {
 impl fmt::Display for PathBuf {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", Path::from(&self[..]))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_path_label_to_string() {
+        let path = path_label(&[]);
+        assert_eq!(path.to_string(), "/".to_string());
+
+        let path = path_label(&["one"]);
+        assert_eq!(path.to_string(), "/one".to_string());
+
+        let path = path_label(&["one", "two"]);
+        assert_eq!(path.to_string(), "/one/two".to_string());
     }
 }
