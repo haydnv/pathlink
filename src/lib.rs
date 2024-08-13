@@ -276,7 +276,7 @@ impl Host {
         self.address.is_localhost()
     }
 
-    /// Check if the address of this [`Host`] is the local host and port or the given `public_addr`.
+    /// Check if this [`Host`] matches the host and port of the given `public_addr` or localhost.
     pub fn is_loopback(&self, public_addr: Option<&Host>) -> bool {
         if let Some(addr) = public_addr {
             self == addr || (self.is_localhost() && self.port == addr.port)
