@@ -152,7 +152,7 @@ impl fmt::Display for Protocol {
     }
 }
 
-/// The address of a remove host
+/// A network address
 #[derive(Clone, Debug, Display, Eq, PartialEq, Hash)]
 pub enum Address {
     IPv4(Ipv4Addr),
@@ -169,6 +169,7 @@ impl Default for Address {
 impl Address {
     pub const LOCALHOST: Self = Self::IPv4(Ipv4Addr::LOCALHOST);
 
+    /// Return this [`Address`] as an [`IpAddr`].
     pub fn as_ip(&self) -> Option<IpAddr> {
         match self {
             Self::IPv4(addr) => Some((*addr).into()),
@@ -176,6 +177,7 @@ impl Address {
         }
     }
 
+    /// Return `true` if this is the [`Address`] of the local host.
     pub fn is_localhost(&self) -> bool {
         match self {
             Self::IPv4(addr) => addr.is_loopback(),
@@ -269,10 +271,12 @@ pub struct Host {
 }
 
 impl Host {
+    /// Check if the address of this [`Host`] is the local host.
     pub fn is_localhost(&self) -> bool {
         self.address.is_localhost()
     }
 
+    /// Check if the address of this [`Host`] is the local host and port or the given `public_addr`.
     pub fn is_loopback(&self, public_addr: Option<&Host>) -> bool {
         if let Some(addr) = public_addr {
             self == addr || (self.is_localhost() && self.port == addr.port)
@@ -281,14 +285,17 @@ impl Host {
         }
     }
 
+    /// Return the [`Protocol`] to use with this [`Host`].
     pub fn protocol(&self) -> Protocol {
         self.protocol
     }
 
+    /// Return the [`Address`] of this [`Host`].
     pub fn address(&self) -> &Address {
         &self.address
     }
 
+    /// Return the [`Port`] which this [`Host`] is listening on.
     pub fn port(&self) -> Option<Port> {
         self.port
     }
